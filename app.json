@@ -4,10 +4,12 @@
     "slug": "6sem-mobile-cp1",
     "version": "1.0.0",
     "orientation": "portrait",
+    "scheme": "6sem-mobile-cp1",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "usesAppleSignIn": true
     },
     "android": {
       "adaptiveIcon": {
@@ -20,6 +22,12 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-apple-authentication"
+    ]
+    "plugins": [
+      "expo-web-browser"
+    ]
   }
 }
