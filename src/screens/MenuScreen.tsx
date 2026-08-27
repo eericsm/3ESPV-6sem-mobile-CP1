@@ -1,24 +1,48 @@
+import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '../hooks/useAuth';
+import type { ChatUser } from '../types/user';
+import { ChatScreen } from './ChatScreen';
+import { UsersScreen } from './UsersScreen';
 
 export const MenuScreen = () => {
     const { user, signOut, loading } = useAuth();
+    const [selectedUser, setSelectedUser] = useState<ChatUser | null>(null);
+
+    if (!user) {
+        return null;
+    }
+
+    if (selectedUser) {
+        return (
+            <ChatScreen
+                currentUser={user}
+                participant={selectedUser}
+                onBack={() => setSelectedUser(null)}
+            />
+        );
+    }
 
     return (
         <View style={styles.container}>
-            <Text style={styles.title}>Menu</Text>
-            <Text style={styles.subtitle}>Você entrou com sucesso e já pode seguir para o chat.</Text>
+            <View style={styles.headerRow}>
+                <View style={styles.identityCard}>
+                    <Text style={styles.label}>Usuário</Text>
+                    <Text style={styles.value}>{user.name}</Text>
+                    <Text style={styles.meta}>{user.email ?? 'Sem e-mail'}</Text>
+                    <Text style={styles.meta}>Provider: {user.provider}</Text>
+                </View>
 
-            <View style={styles.card}>
-                <Text style={styles.label}>Usuário</Text>
-                <Text style={styles.value}>{user?.name}</Text>
-                <Text style={styles.meta}>{user?.email ?? 'Sem e-mail'}</Text>
-                <Text style={styles.meta}>Provider: {user?.provider}</Text>
+                <Pressable style={styles.logoutButton} onPress={signOut} disabled={loading}>
+                    {loading ? (
+                        <ActivityIndicator color="#FFFFFF" />
+                    ) : (
+                        <Text style={styles.logoutText}>Sair</Text>
+                    )}
+                </Pressable>
             </View>
 
-            <Pressable style={styles.button} onPress={signOut} disabled={loading}>
-                {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.buttonText}>Sair</Text>}
-            </Pressable>
+            <UsersScreen currentUser={user} onSelectUser={setSelectedUser} />
         </View>
     );
 };
@@ -27,27 +51,22 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#0F172A',
-        padding: 24,
-        justifyContent: 'center',
+        padding: 20,
         gap: 18,
     },
-    title: {
-        color: '#F8FAFC',
-        fontSize: 30,
-        fontWeight: '700',
+    headerRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
     },
-    subtitle: {
-        color: '#CBD5E1',
-        fontSize: 15,
-        lineHeight: 22,
-    },
-    card: {
+    identityCard: {
+        flex: 1,
         backgroundColor: '#111827',
         borderRadius: 20,
-        padding: 20,
+        padding: 16,
         borderWidth: 1,
         borderColor: '#243044',
-        gap: 8,
     },
     label: {
         color: '#38BDF8',
@@ -57,23 +76,26 @@ const styles = StyleSheet.create({
     },
     value: {
         color: '#FFFFFF',
-        fontSize: 22,
+        fontSize: 20,
         fontWeight: '700',
+        marginTop: 6,
     },
     meta: {
         color: '#CBD5E1',
-        fontSize: 14,
+        fontSize: 13,
+        marginTop: 4,
     },
-    button: {
+    logoutButton: {
+        minWidth: 90,
         minHeight: 52,
         borderRadius: 14,
         backgroundColor: '#EF4444',
         alignItems: 'center',
         justifyContent: 'center',
     },
-    buttonText: {
+    logoutText: {
         color: '#FFFFFF',
-        fontSize: 16,
+        fontSize: 14,
         fontWeight: '700',
     },
 });

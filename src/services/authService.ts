@@ -9,11 +9,12 @@ import {
     type User,
     type UserCredential,
 } from 'firebase/auth';
+import { set, ref } from 'firebase/database';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as AuthSession from 'expo-auth-session';
 import * as Crypto from 'expo-crypto';
 import * as WebBrowser from 'expo-web-browser';
-import { firebaseAuth } from './firebase';
+import { firebaseAuth, firebaseDatabase } from './firebase';
 import type { AuthProvider, ChatUser } from '../types/user';
 
 export type SignInCredentials = {
@@ -65,14 +66,29 @@ export const mapFirebaseUserToChatUser = (user: User): ChatUser => {
     };
 };
 
+const saveUserProfile = async (user: User): Promise<void> => {
+    const userProfile: ChatUser = mapFirebaseUserToChatUser(user);
+    const userRef = ref(firebaseDatabase, `users/${user.uid}`);
+
+    await set(userRef, {
+        uid: userProfile.uid,
+        name: userProfile.name,
+        email: userProfile.email,
+        provider: userProfile.provider,
+    });
+};
+
 export const signInWithEmail = async (
     credentials: SignInCredentials,
 ): Promise<UserCredential> => {
-    return signInWithEmailAndPassword(
+    const credential = await signInWithEmailAndPassword(
         firebaseAuth,
         credentials.email,
         credentials.password,
     );
+
+    await saveUserProfile(credential.user);
+    return credential;
 };
 
 export const signUpWithEmail = async (
@@ -88,6 +104,7 @@ export const signUpWithEmail = async (
         displayName: credentials.name,
     });
 
+    await saveUserProfile(credential.user);
     return credential;
 };
 
@@ -98,6 +115,12 @@ export const signInWithGoogle = async (): Promise<ProviderSignInResult> => {
 
     const discovery = await AuthSession.fetchDiscoveryAsync(googleIssuer);
     const redirectUri = AuthSession.makeRedirectUri({ scheme: '6sem-mobile-cp1' });
+
+    if (/localhost|127\.0\.0\.1/.test(redirectUri)) {
+        throw new Error(
+            'Google OAuth bloqueado: adicione http://localhost:8081 e o handler do Firebase no Google Cloud Console.',
+        );
+    }
 
     const request = new AuthSession.AuthRequest({
         clientId: googleClientId,
@@ -115,11 +138,17 @@ export const signInWithGoogle = async (): Promise<ProviderSignInResult> => {
     }
 
     const tokenResponse = AuthSession.TokenResponse.fromQueryParams(result.params);
-    const credential = GoogleAuthProvider.credential(
-        tokenResponse.idToken ?? null,
-        tokenResponse.accessToken,
-    );
+    const idToken = tokenResponse.idToken ?? result.params.id_token ?? null;
+
+    if (!idToken) {
+        throw new Error(
+            'Google OAuth não retornou o token de identidade. Verifique o redirect URI no Google Cloud Console.',
+        );
+    }
+
+    const credential = GoogleAuthProvider.credential(idToken, tokenResponse.accessToken);
     const firebaseCredential = await signInWithCredential(firebaseAuth, credential);
+    await saveUserProfile(firebaseCredential.user);
 
     return {
         user: mapFirebaseUserToChatUser(firebaseCredential.user),
@@ -153,6 +182,7 @@ export const signInWithApple = async (): Promise<ProviderSignInResult> => {
         rawNonce: nonce,
     });
     const result = await signInWithCredential(firebaseAuth, firebaseCredential);
+    await saveUserProfile(result.user);
 
     return {
         user: mapFirebaseUserToChatUser(result.user),

@@ -29,6 +29,7 @@ export type AuthContextValue = AuthState & {
     signUp: (credentials: SignUpCredentials) => Promise<void>;
     signOut: () => Promise<void>;
     clearError: () => void;
+    setError: (message: string | null) => void;
 };
 
 export const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -53,6 +54,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     const clearError = useCallback(() => {
         setError(null);
+    }, []);
+
+    const setErrorMessage = useCallback((message: string | null) => {
+        setError(message);
     }, []);
 
     const signIn = useCallback(async (credentials: SignInCredentials) => {
@@ -106,8 +111,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             signUp,
             signOut,
             clearError,
+            setError: setErrorMessage,
         }),
-        [user, loading, error, signIn, signUp, signOut, clearError],
+        [user, loading, error, signIn, signUp, signOut, clearError, setErrorMessage],
     );
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
