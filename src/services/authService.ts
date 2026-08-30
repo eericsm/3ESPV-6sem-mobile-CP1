@@ -13,6 +13,7 @@ import { set, ref } from 'firebase/database';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as AuthSession from 'expo-auth-session';
 import * as Crypto from 'expo-crypto';
+import { Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { firebaseAuth, firebaseDatabase } from './firebase';
 import type { AuthProvider, ChatUser } from '../types/user';
@@ -35,6 +36,17 @@ WebBrowser.maybeCompleteAuthSession();
 
 const googleIssuer = 'https://accounts.google.com';
 const googleClientId = '962570539319-s35fi8i6513cjjvm3rjj2p2lnufsfjfu.apps.googleusercontent.com';
+
+const getGoogleRedirectUri = (): string => {
+    if (Platform.OS === 'web') {
+        return AuthSession.makeRedirectUri({ path: 'auth/google' });
+    }
+
+    return AuthSession.makeRedirectUri({
+        scheme: '6sem-mobile-cp1',
+        path: 'auth/google',
+    });
+};
 
 const buildNonce = async (): Promise<string> => {
     const randomBytes = Crypto.getRandomBytes(16);
@@ -114,19 +126,14 @@ export const signInWithGoogle = async (): Promise<ProviderSignInResult> => {
     }
 
     const discovery = await AuthSession.fetchDiscoveryAsync(googleIssuer);
-    const redirectUri = AuthSession.makeRedirectUri({ scheme: '6sem-mobile-cp1' });
-
-    if (/localhost|127\.0\.0\.1/.test(redirectUri)) {
-        throw new Error(
-            'Google OAuth bloqueado: adicione http://localhost:8081 e o handler do Firebase no Google Cloud Console.',
-        );
-    }
+    const redirectUri = getGoogleRedirectUri();
 
     const request = new AuthSession.AuthRequest({
         clientId: googleClientId,
         responseType: AuthSession.ResponseType.IdToken,
         redirectUri,
         scopes: ['openid', 'profile', 'email'],
+        prompt: AuthSession.Prompt.SelectAccount,
         usePKCE: false,
     });
 
@@ -137,12 +144,12 @@ export const signInWithGoogle = async (): Promise<ProviderSignInResult> => {
         throw new Error('Google sign-in canceled');
     }
 
-    const tokenResponse = AuthSession.TokenResponse.fromQueryParams(result.params);
+    const tokenResponse = result.authentication ?? AuthSession.TokenResponse.fromQueryParams(result.params);
     const idToken = tokenResponse.idToken ?? result.params.id_token ?? null;
 
     if (!idToken) {
         throw new Error(
-            'Google OAuth não retornou o token de identidade. Verifique o redirect URI no Google Cloud Console.',
+            `Google OAuth não retornou o token de identidade. Verifique se o redirect URI ${redirectUri} está autorizado no Google Cloud Console.`,
         );
     }
 
