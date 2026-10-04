@@ -1,96 +1,290 @@
 # chat SEIA
 
-Aplicativo de chat em tempo real desenvolvido com React Native + Expo + Firebase.
+Aplicativo de chat em tempo real (conversas individuais e em grupo) desenvolvido
+com React Native + Expo + TypeScript + Firebase, com notificações push entregues
+por uma API própria.
 
 ## Descrição
 
-Este projeto é uma aplicação de chat 1 para 1 com autenticação de usuários e sincronização em tempo real utilizando o Firebase. 
-
-O app permite cadastro e login com e-mail e senha.
+O app permite cadastro e login exclusivamente por e-mail e senha. Usuários
+autenticados podem conversar individualmente (1 para 1) ou criar/participar de
+grupos com limite configurável de integrantes e política de notificação própria.
+Mensagens são sincronizadas em tempo real via Firebase Realtime Database; perfis,
+grupos e tokens de notificação ficam no Cloud Firestore. O envio de push é feito
+por uma API Node.js própria (nunca pelo app diretamente), usando Firebase Cloud
+Messaging.
 
 ## Tecnologias utilizadas
 
-- React Native
-- Expo
-- TypeScript
-- Firebase Authentication
+- React Native 0.86 + Expo SDK 57
+- TypeScript (sem `any`)
+- Firebase Authentication (e-mail/senha)
+- Cloud Firestore
 - Firebase Realtime Database
-- Expo Apple Authentication
-- Expo Auth Session
-- Expo Web Browser
-- React Native Safe Area Context
+- Firebase Cloud Messaging (FCM)
+- Cloudinary (fotos de perfil e de grupo — ver "Armazenamento de fotos" abaixo)
+- `expo-notifications`, `expo-image-picker`, `expo-dev-client`
+- API própria: Node.js + Express + TypeScript (`server/`)
 
 ## Versão do Expo
 
-- Expo: ~54
-- React Native: 0.81.5
+- Expo SDK: `^57`
+- React Native: `0.86.3`
 
-## Serviços Firebase utilizados
+> Push remoto não é suportado no Expo Go. É necessário um **development build**
+> (`npx expo run:android` ou `npx expo run:ios`, ou um build EAS) para testar
+> notificações. O restante do app funciona normalmente no Expo Go.
 
-- Firebase Authentication
-- Firebase Realtime Database
+## Serviços Firebase utilizados e responsabilidade de cada um
+
+| Serviço | Responsabilidade |
+|---|---|
+| **Firebase Authentication** | Cadastro e login por e-mail/senha, recuperação de sessão, logout. |
+| **Cloud Firestore** | Perfis de usuário (público `users/{uid}` + privado `users/{uid}/private/profile`), grupos e seus metadados (`groups/{id}`), conversas diretas (`directConversations/{id}`), tokens de dispositivo (`users/{uid}/devices/{deviceId}`), e idempotência de notificações (`processedMessages/{messageId}`, usado só pela API). |
+| **Realtime Database** | Mensagens (`messages/{conversationId}/{messageId}`) e os espelhos de membership usados pelas regras (`conversationMembers`, `groupOwners`) — ver seção de segurança. |
+| **Firebase Cloud Messaging** | Envio de notificações push, disparado exclusivamente pela API (`server/`), nunca pelo app. |
+
+> Fotos de perfil/grupo **não** usam Firebase Storage — ver "Armazenamento de
+> fotos" abaixo para o porquê e o serviço escolhido.
+
+### Por que os perfis são divididos em público/privado no Firestore
+
+A tela de usuários precisa listar todos os cadastrados (para iniciar conversas e
+montar grupos), mas o enunciado exige que "dados cadastrais" (e-mail, celular,
+nascimento) só fiquem visíveis para quem compartilha uma conversa ou grupo com o
+usuário. Como as regras do Firestore não fazem redação por campo (só por
+documento), o perfil foi dividido em dois documentos:
+
+- `users/{uid}`: nome, foto, `createdAt`, `groupIds` — público para qualquer
+  autenticado (necessário para a tela de contatos e para a própria regra de
+  segurança calcular "integrantes em comum").
+- `users/{uid}/private/profile`: e-mail, celular, data de nascimento — só o
+  próprio usuário ou alguém que comprove (via regra) compartilhar uma conversa
+  direta ou grupo.
 
 ## Pré-requisitos
 
-Antes de rodar o projeto, verifique se você possui instalado:
+- Node.js 22.13+ (exigido pelo Expo SDK 57)
+- npm
+- Expo CLI (`npx expo ...`, não precisa instalar globalmente)
+- Android Studio / emulador, ou dispositivo físico com Expo Go (para o fluxo sem
+  push) ou development build (para testar push)
 
-- Node.js
-- npm ou yarn
-- Expo CLI
-- Android Studio / emulador Android ou app Expo Go no celular
-
-## Instruções para execução
-
-1. Clone o repositório
-2. Acesse a pasta do projeto
-3. Instale as dependências:
+## Instruções de instalação e execução (app)
 
 ```bash
 npm install
-```
-
-4. Inicie o projeto:
-
-```bash
 npx expo start
 ```
 
-5. Escolha uma opção:
+O `.env` do app já vem commitado no repositório com valores reais — nada nele é
+secreto (Cloudinary cloud name/preset são públicos por design; a URL da API de
+notificações também não é sensível). Isso é intencional, para que o projeto
+rode com `npm install` sem configuração extra. Só `EXPO_PUBLIC_NOTIFICATIONS_API_URL`
+precisa ser atualizado após o deploy da API (ver seção da API abaixo) — sem
+isso, o app funciona normalmente, só não dispara push.
 
-- escanear o QR code com o app Expo Go no Android/iPhone
-- rodar na web
+Escolha rodar no Android, iOS ou Web. Para testar **notificações push**, é
+necessário um development build:
 
-## Configuração básica do Firebase
-
-1. Acesse o Firebase Console
-2. Crie um projeto Firebase
-3. Ative o Firebase Authentication
-4. Ative o Realtime Database
-5. Configure o app no Firebase e copie as chaves de configuração
-6. Atualize o arquivo `src/services/firebase.ts` com as informações do seu projeto
-
-Exemplo de estrutura esperada:
-
-```ts
-export const firebaseConfig = {
-  apiKey: 'SUA_API_KEY',
-  authDomain: 'SEU_PROJETO.firebaseapp.com',
-  databaseURL: 'https://SEU_PROJETO-default-rtdb.firebaseio.com/',
-  projectId: 'SEU_PROJETO',
-  storageBucket: 'SEU_PROJETO.appspot.com',
-  messagingSenderId: 'SEU_SENDER_ID',
-  appId: 'SEU_APP_ID',
-};
+```bash
+npx expo run:android
+# ou
+npx expo run:ios
 ```
 
-### Autenticação
+## Configuração do Firebase
 
-- Habilite autenticação por e-mail/senha
+O arquivo `firebaseConfig.json`, na raiz do repositório, contém a configuração
+pública do SDK cliente (não é um segredo administrativo) e é lido por
+`src/services/firebase.ts`. Para apontar para outro projeto Firebase:
 
-### Realtime Database
+1. Crie um projeto no [Firebase Console](https://console.firebase.google.com/).
+2. Ative **Authentication** (e-mail/senha), **Cloud Firestore**, **Realtime
+   Database** e **Cloud Messaging**.
+3. Copie as credenciais do app Web para `firebaseConfig.json` (mesmo formato já
+   presente no arquivo).
+4. Publique as regras versionadas no repositório:
+   - `firestore.rules`
+   - `database.rules.json`
 
-- Crie a base no modo Realtime Database
-- Defina regras de segurança antes de publicar a aplicação
+   ```bash
+   npx firebase-tools deploy --only firestore:rules,database
+   ```
+
+### Armazenamento de fotos
+
+**Firebase Storage não é usado neste projeto** — desde o final de 2024 ele
+passou a exigir o plano pago (Blaze), mesmo para uso dentro da cota gratuita, e
+a equipe optou por não vincular um cartão de crédito. O enunciado permite
+explicitamente essa troca ("Firebase Storage é recomendado, mas outra solução
+poderá ser utilizada").
+
+Fotos de perfil e de grupo são enviadas para o **Cloudinary** (free tier, sem
+necessidade de cartão), via upload direto do app usando um
+["unsigned upload preset"](https://cloudinary.com/documentation/upload_images#unsigned_upload):
+nenhum segredo fica no cliente, o preset só autoriza criação de novos arquivos.
+Apenas a URL final (`secure_url`) é salva no Firestore, nunca a imagem em
+Base64. Configuração (`src/services/imageUploadService.ts`):
+
+- `EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME` e `EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET`
+  no `.env` da raiz (já preenchidos com os valores da conta usada pela equipe,
+  já que não são segredos).
+- Para usar outra conta: crie uma em [cloudinary.com](https://cloudinary.com)
+  (grátis, sem cartão) → Settings → Upload → Upload presets → novo preset com
+  **Signing Mode = Unsigned** → copie o cloud name (topo do dashboard) e o nome
+  do preset para o `.env`.
+
+## Configuração das notificações (Android/iOS)
+
+- O app usa `expo-notifications` só para pedir permissão, criar o canal Android
+  e capturar o **token nativo do dispositivo** (`getDevicePushTokenAsync`, que no
+  Android é o token FCM real), salvo em
+  `users/{uid}/devices/{deviceId}` no Firestore.
+- O disparo do push em si é feito pela API (`server/`) via Firebase Admin SDK —
+  o app nunca chama `admin.messaging()` nem guarda credencial administrativa.
+- **Android**: o projeto Firebase precisa ter o app Android registrado e o
+  `google-services.json` colocado na raiz antes de gerar um development build
+  (`npx expo run:android` cria o projeto nativo e já injeta a config).
+- **iOS**: push remoto exige conta Apple Developer paga, certificado/chave APNs
+  configurada no projeto Firebase (Cloud Messaging → APNs Auth Key) e um
+  development build (`npx expo run:ios`). Em simulador iOS, push remoto não
+  funciona — teste em device físico.
+- Em ambos os casos, push **não funciona no Expo Go**; é necessário development
+  build, como indicado acima.
+
+## API de notificações (`server/`)
+
+### Tecnologia
+
+Node.js + Express + TypeScript. Usa o **Firebase Admin SDK** para validar o ID
+token do usuário e enviar notificações via FCM. Não usa Cloud Functions.
+
+### Fluxo
+
+1. O app persiste a mensagem no Realtime Database.
+2. O app chama `POST /notifications/messages` com `conversationId` e
+   `messageId`, autenticado com `Authorization: Bearer <firebase-id-token>`.
+3. A API valida o token com o Admin SDK, confirma no Realtime Database que a
+   mensagem existe e que `senderId` é o usuário autenticado.
+4. A API verifica se a mensagem já foi processada (`processedMessages/{messageId}`
+   no Firestore, escrito dentro de uma transação) — se já foi, responde sem
+   reenviar (idempotência contra chamadas duplicadas).
+5. A API consulta no Firestore o tipo de conversa:
+   - **direta** (`directConversations/{id}`): destinatário é o outro
+     participante.
+   - **grupo** (`groups/{id}`): destinatários dependem da
+     `notificationPolicy` do grupo (ver abaixo).
+6. A API busca os tokens de dispositivo habilitados dos destinatários
+   (`users/{uid}/devices`) e envia via
+   `admin.messaging().sendEachForMulticast`. Tokens inválidos/não registrados
+   são automaticamente desativados no Firestore.
+
+Os destinatários **nunca** são recebidos do app — são sempre recalculados no
+servidor a partir do Firestore/Realtime Database oficiais.
+
+### Endpoints
+
+| Método | Rota | Descrição |
+|---|---|---|
+| `GET` | `/health` | Health check — retorna `200 { "status": "ok" }`. |
+| `POST` | `/notifications/messages` | Dispara a notificação de uma mensagem já persistida. Corpo: `{ "conversationId": string, "messageId": string }`. Header: `Authorization: Bearer <firebase-id-token>`. |
+
+### Como rodar localmente
+
+```bash
+cd server
+npm install
+cp .env.example .env   # preencha com as credenciais da conta de serviço
+npm run dev
+```
+
+### Como publicar (Render, free tier)
+
+1. Crie um "Web Service" no [Render](https://render.com) apontando para a pasta
+   `server/` deste repositório.
+2. Build command: `npm install && npm run build`. Start command: `npm start`.
+3. Configure as variáveis de ambiente do serviço (nunca commitadas):
+   - `FIREBASE_PROJECT_ID`
+   - `FIREBASE_CLIENT_EMAIL`
+   - `FIREBASE_PRIVATE_KEY` (cole a chave privada da conta de serviço;
+     mantenha as quebras de linha como `\n`)
+   - `FIREBASE_DATABASE_URL`
+4. Deploy. A URL pública gerada pelo Render (ex.:
+   `https://chat-seia-notifications-api.onrender.com`) deve ser configurada em
+   `EXPO_PUBLIC_NOTIFICATIONS_API_URL` no `.env` do app.
+
+### URL pública da API
+
+> ⚠️ **TODO (equipe):** preencher aqui a URL pública definitiva após o deploy,
+> por exemplo `https://chat-seia-notifications-api.onrender.com`. O endpoint
+> `/health` dessa URL deve responder `200` durante toda a correção.
+
+### Credenciais administrativas
+
+A conta de serviço (Firebase Admin SDK) é configurada **somente** nas
+variáveis de ambiente do serviço de hospedagem (Render), nunca no app nem no
+repositório Git. O arquivo `server/.env.example` documenta apenas os **nomes**
+das variáveis necessárias, com valores fictícios.
+
+## Explicação da política de notificação
+
+Cada grupo tem um campo `notificationPolicy` (editável só pelo proprietário):
+
+- `all_group_messages`: todos os integrantes (exceto o remetente) recebem push
+  em toda mensagem geral do grupo.
+- `mentioned_members`: só quem foi mencionado/selecionado como destinatário
+  (`mentionedUserIds` da mensagem) recebe push.
+- `direct_messages_only`: mensagens do grupo nunca geram push; só conversas
+  diretas notificam.
+- `disabled`: nenhuma mensagem da conversa gera push.
+
+Conversas diretas não têm política configurável: o outro participante é sempre
+notificado (exceto o próprio remetente). Em todos os casos, o remetente nunca
+recebe notificação da própria mensagem, e a lista de destinatários é sempre
+recalculada no servidor (nunca enviada pelo app).
+
+## Explicação da proteção contra concorrência do limite de grupo
+
+`groupService.addMember` (app) usa `runTransaction` do Firestore: dentro da
+transação, lê o documento do grupo, confere
+`memberIds.length < memberLimit` e só então grava o novo integrante. As
+transações do Firestore são otimistas — se duas pessoas tentarem entrar ao
+mesmo tempo no último slot disponível, o Firestore detecta o conflito de leitura
+e repete automaticamente a transação perdedora; na nova tentativa, ela lerá o
+estado já atualizado e falhará a checagem de capacidade. Isso garante que o
+grupo nunca excede `memberLimit`, mesmo sob requisições concorrentes, sem
+depender apenas de desabilitar botões na interface.
+
+## Regras de segurança
+
+- `firestore.rules`: perfis público/privado (ver seção acima), conversas
+  diretas e grupos só legíveis por quem participa, `groups` só editável pelo
+  proprietário, `processedMessages` bloqueado para o cliente (só a API o usa
+  via Admin SDK, que ignora regras).
+- `database.rules.json`: mensagens só legíveis/graváveis por quem está marcado
+  em `conversationMembers/{conversationId}/{uid}`; esse espelho só pode ser
+  escrito pelo próprio uid (auto-registro ao abrir a conversa) ou pelo
+  proprietário do grupo (identificado por `groupOwners/{groupId}`, gravado uma
+  única vez na criação do grupo) — isso permite remover o acesso de um
+  integrante removido imediatamente. Mensagens são imutáveis
+  (`!data.exists()` no `.write`) e o `senderId` deve ser o autor autenticado.
+- Fotos (Cloudinary) não passam pelas regras do Firebase — a proteção ali é o
+  "unsigned upload preset" (só permite criar arquivos novos, não ler/listar/
+  apagar o restante da conta).
+
+### Decisão documentada: validação cruzada Firestore ↔ Realtime Database
+
+Como perfis/grupos vivem no Firestore e mensagens no Realtime Database, nenhum
+dos dois consegue ler o outro dentro das próprias regras de segurança. Por isso:
+
+- o app mantém espelhos mínimos e não sensíveis no Realtime Database
+  (`conversationMembers`, `groupOwners`) só para as regras de mensagens
+  decidirem acesso sem precisar ler o Firestore;
+- a API, antes de enviar qualquer push, **revalida tudo direto nas fontes
+  oficiais** (Realtime Database para a mensagem, Firestore para
+  participantes/política) — ela nunca confia nos espelhos nem em dados vindos
+  do app.
 
 ## Estrutura do projeto
 
@@ -98,55 +292,90 @@ export const firebaseConfig = {
 .
 ├── app.json
 ├── App.tsx
-├── index.ts
-├── package.json
-├── README.md
-├── assets/
+├── firebaseConfig.json
+├── firestore.rules
+├── database.rules.json
+├── .env
+├── .env.example
 ├── src/
 │   ├── components/
-│   │   ├── ChatInput.tsx
+│   │   ├── Avatar.tsx
 │   │   ├── ChatMessage.tsx
+│   │   ├── ConversationItem.tsx
 │   │   ├── ErrorMessage.tsx
+│   │   ├── GroupMemberItem.tsx
 │   │   ├── Loading.tsx
 │   │   └── UserItem.tsx
 │   ├── contexts/
 │   │   └── AuthContext.tsx
 │   ├── hooks/
 │   │   ├── useAuth.ts
-│   │   └── useChat.ts
+│   │   ├── useChat.ts
+│   │   └── useNotifications.ts
 │   ├── screens/
 │   │   ├── ChatScreen.tsx
+│   │   ├── ConversationsScreen.tsx
+│   │   ├── GroupFormScreen.tsx
 │   │   ├── LoginScreen.tsx
-│   │   ├── MenuScreen.tsx
+│   │   ├── ProfileScreen.tsx
+│   │   ├── RegisterScreen.tsx
 │   │   └── UsersScreen.tsx
 │   ├── services/
 │   │   ├── authService.ts
 │   │   ├── chatService.ts
 │   │   ├── firebase.ts
+│   │   ├── groupService.ts
+│   │   ├── imageUploadService.ts
+│   │   ├── notificationService.ts
 │   │   └── userService.ts
 │   ├── types/
 │   │   ├── chat.ts
+│   │   ├── group.ts
+│   │   ├── notification.ts
 │   │   └── user.ts
 │   └── utils/
-│       └── chatRules.ts
-└── tsconfig.json
+│       ├── conversationId.ts
+│       ├── groupValidation.ts
+│       └── imagePicker.ts
+└── server/
+    ├── .env.example
+    └── src/
+        ├── app.ts
+        ├── middleware/authenticate.ts
+        ├── routes/{health,notifications}.ts
+        ├── services/{firebaseAdmin,notificationSender,recipientResolver}.ts
+        └── types.ts
 ```
 
 ## Prints da aplicação
+
+> ⚠️ **TODO (equipe):** os prints abaixo são do protótipo da fase anterior
+> (login simples, sem grupos). Recapturar prints das telas atuais (cadastro
+> completo, lista de conversas unificada, criação de grupo, chat em grupo com
+> menção, perfil) antes da entrega.
 
 ![tela de login](image.png)
 ![tela de cadastro](image-3.png)
 ![tela de contatos](image-1.png)
 ![tela de chat](image-2.png)
 
+## Evidência de notificação recebida
+
+> ⚠️ **TODO (equipe):** inserir aqui um print/gravação mostrando a notificação
+> push chegando com o app em segundo plano, em um development build num device
+> físico (print da notificação no sistema + print da conversa aberta após o
+> toque).
+
 ## Observações
 
-Este projeto implementa autenticação por e-mail e senha. O login com Google e Apple não foi incluído porque essas formas de autenticação não foram ensinadas durante o desenvolvimento do projeto.
+- Autenticação é exclusivamente por e-mail e senha — não há login com Google,
+  Apple, contas anônimas ou usuários hardcoded.
+- Zero uso de `any` no código TypeScript do app e da API.
 
-## integrantes
+## Integrantes
 
-Joao Victor Oliveira dos Santos - RM557948
-Matheus Alcântara Estevão - RM558193
-Nicolle Pellegrino Jelinski - RM558610
-Pedro Pereira dos Santos - RM552047
-Eric Segawa Montagner - RM558224
+- RM557948 — Joao Victor Oliveira dos Santos
+- RM558193 — Matheus Alcântara Estevão
+- RM558610 — Nicolle Pellegrino Jelinski
+- RM552047 — Pedro Pereira dos Santos
+- RM558224 — Eric Segawa Montagner

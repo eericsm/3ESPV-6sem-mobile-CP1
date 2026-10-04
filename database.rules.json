@@ -1,0 +1,41 @@
+{
+    "rules": {
+        "groupOwners": {
+            "$groupId": {
+                ".read": "auth != null",
+                ".write": "auth != null && !data.exists() && newData.val() === auth.uid",
+                ".validate": "newData.isString()"
+            }
+        },
+        "conversationMembers": {
+            "$conversationId": {
+                ".read": "auth != null && data.child(auth.uid).val() === true",
+                "$uid": {
+                    ".write": "auth != null && (auth.uid === $uid || auth.uid === root.child('groupOwners').child($conversationId).val())",
+                    ".validate": "newData.isBoolean()"
+                }
+            }
+        },
+        "messages": {
+            "$conversationId": {
+                ".read": "auth != null && root.child('conversationMembers').child($conversationId).child(auth.uid).val() === true",
+                "$messageId": {
+                    ".write": "auth != null && root.child('conversationMembers').child($conversationId).child(auth.uid).val() === true && !data.exists() && newData.child('senderId').val() === auth.uid",
+                    ".validate": "newData.hasChildren(['id', 'conversationId', 'conversationType', 'senderId', 'text', 'target', 'mentionedUserIds', 'createdAt'])"
+                }
+            }
+        },
+        "users": {
+            ".read": false,
+            ".write": false
+        },
+        "conversations": {
+            ".read": false,
+            ".write": false
+        },
+        "$other": {
+            ".read": false,
+            ".write": false
+        }
+    }
+}

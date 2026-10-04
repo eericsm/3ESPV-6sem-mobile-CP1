@@ -1,12 +1,16 @@
 import { StatusBar } from 'expo-status-bar';
-import { useMemo } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Loading } from './src/components/Loading';
 import { AuthProvider } from './src/contexts/AuthContext';
 import { useAuth } from './src/hooks/useAuth';
+import { useNotifications } from './src/hooks/useNotifications';
+import { addNotificationResponseListener } from './src/services/notificationService';
 import { LoginScreen } from './src/screens/LoginScreen';
-import { MenuScreen } from './src/screens/MenuScreen';
+import { RegisterScreen } from './src/screens/RegisterScreen';
+import { ConversationsScreen } from './src/screens/ConversationsScreen';
+import type { NotificationPayload } from './src/types/notification';
 
 export default function App() {
     return (
@@ -21,24 +25,47 @@ export default function App() {
 
 function AppContent() {
     const { user, loading } = useAuth();
+    const [showRegister, setShowRegister] = useState<boolean>(false);
+    const [pendingNotification, setPendingNotification] = useState<NotificationPayload | null>(null);
 
-    const content = useMemo(() => {
-        if (loading) {
-            return (
-                <View style={styles.loadingContainer}>
-                    <Loading label="Abrindo aplicativo..." />
-                </View>
-            );
-        }
+    useNotifications(user?.uid ?? null);
 
-        if (user) {
-            return <MenuScreen />;
-        }
+    useEffect(() => {
+        const subscription = addNotificationResponseListener((conversationId, conversationType) => {
+            setPendingNotification({ conversationId, conversationType });
+        });
 
-        return <LoginScreen />;
-    }, [loading, user]);
+        return () => {
+            subscription.remove();
+        };
+    }, []);
 
-    return content;
+    const clearPendingNotification = useCallback(() => {
+        setPendingNotification(null);
+    }, []);
+
+    if (loading) {
+        return (
+            <View style={styles.loadingContainer}>
+                <Loading label="Abrindo aplicativo..." />
+            </View>
+        );
+    }
+
+    if (!user) {
+        return showRegister ? (
+            <RegisterScreen onBackToLogin={() => setShowRegister(false)} />
+        ) : (
+            <LoginScreen onCreateAccount={() => setShowRegister(true)} />
+        );
+    }
+
+    return (
+        <ConversationsScreen
+            pendingNotification={pendingNotification}
+            onPendingNotificationHandled={clearPendingNotification}
+        />
+    );
 }
 
 const styles = StyleSheet.create({

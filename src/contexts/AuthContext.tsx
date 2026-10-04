@@ -16,6 +16,7 @@ import {
     type SignInCredentials,
     type SignUpCredentials,
 } from '../services/authService';
+import { getUserProfile } from '../services/userService';
 import type { ChatUser } from '../types/user';
 
 export type AuthState = {
@@ -28,6 +29,7 @@ export type AuthContextValue = AuthState & {
     signIn: (credentials: SignInCredentials) => Promise<void>;
     signUp: (credentials: SignUpCredentials) => Promise<void>;
     signOut: () => Promise<void>;
+    refreshUser: () => Promise<void>;
     clearError: () => void;
     setError: (message: string | null) => void;
 };
@@ -45,8 +47,22 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(firebaseAuth, (firebaseUser) => {
-            setUser(firebaseUser ? mapFirebaseUserToChatUser(firebaseUser) : null);
-            setLoading(false);
+            if (!firebaseUser) {
+                setUser(null);
+                setLoading(false);
+                return;
+            }
+
+            getUserProfile(firebaseUser.uid)
+                .then((profile) => {
+                    setUser(profile ?? mapFirebaseUserToChatUser(firebaseUser));
+                })
+                .catch(() => {
+                    setUser(mapFirebaseUserToChatUser(firebaseUser));
+                })
+                .finally(() => {
+                    setLoading(false);
+                });
         });
 
         return unsubscribe;
@@ -58,6 +74,17 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     const setErrorMessage = useCallback((message: string | null) => {
         setError(message);
+    }, []);
+
+    const refreshUser = useCallback(async () => {
+        const firebaseUser = firebaseAuth.currentUser;
+
+        if (!firebaseUser) {
+            return;
+        }
+
+        const profile = await getUserProfile(firebaseUser.uid);
+        setUser(profile ?? mapFirebaseUserToChatUser(firebaseUser));
     }, []);
 
     const signIn = useCallback(async (credentials: SignInCredentials) => {
@@ -110,10 +137,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             signIn,
             signUp,
             signOut,
+            refreshUser,
             clearError,
             setError: setErrorMessage,
         }),
-        [user, loading, error, signIn, signUp, signOut, clearError, setErrorMessage],
+        [user, loading, error, signIn, signUp, signOut, refreshUser, clearError, setErrorMessage],
     );
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

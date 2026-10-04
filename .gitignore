@@ -25,13 +25,17 @@ expo-env.d.ts
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+firebase-debug.log
 
 # macOS
 .DS_Store
 *.pem
 
 # local env files
-.env*.local
+# App's own .env is committed on purpose (professor requested runnable-as-is repo;
+# nothing in it is a secret -- see README). Only the API's Firebase Admin
+# credentials stay out of git, since those grant full admin access.
+server/.env
 
 # typescript
 *.tsbuildinfo

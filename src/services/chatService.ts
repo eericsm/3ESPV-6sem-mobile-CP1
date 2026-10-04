@@ -1,70 +1,155 @@
 import {
-    get,
-    off,
-    onValue,
-    push,
-    ref,
-    set,
-} from 'firebase/database';
-import { firebaseDatabase } from './firebase';
-import type { ChatMessage, Conversation } from '../types/chat';
-import type { ChatUser } from '../types/user';
+    collection,
+    doc,
+    getDoc,
+    getDocs,
+    onSnapshot,
+    query,
+    serverTimestamp,
+    setDoc,
+    where,
+    type Unsubscribe,
+} from 'firebase/firestore';
+import { get, off, onValue, push, ref, set } from 'firebase/database';
+import { firebaseDatabase, firebaseFirestore } from './firebase';
+import { notifyNewMessage } from './notificationService';
+import { buildDirectConversationId } from '../utils/conversationId';
+import type { ChatMessage, ConversationType, DirectConversation, MessageTarget } from '../types/chat';
 
 export type MessageListener = (messages: ChatMessage[]) => void;
 
-const getParticipantsKey = (firstUserId: string, secondUserId: string): string => {
-    return [firstUserId, secondUserId].sort().join('_');
+export const registerSelfAsConversationMember = async (
+    conversationId: string,
+    uid: string,
+): Promise<void> => {
+    const memberRef = ref(firebaseDatabase, `conversationMembers/${conversationId}/${uid}`);
+    await set(memberRef, true);
 };
 
-export const getOrCreateConversation = async (
+export const registerGroupOwner = async (groupId: string, ownerId: string): Promise<void> => {
+    const ownerRef = ref(firebaseDatabase, `groupOwners/${groupId}`);
+    await set(ownerRef, ownerId);
+};
+
+export const getOrCreateDirectConversation = async (
     currentUserId: string,
     targetUserId: string,
-): Promise<Conversation> => {
-    const conversationsRef = ref(firebaseDatabase, 'conversations');
-    const snapshot = await get(conversationsRef);
-    const conversations: Record<string, { participants?: string[]; createdAt?: number }> = snapshot.val() ?? {};
+): Promise<DirectConversation> => {
+    if (currentUserId === targetUserId) {
+        throw new Error('Não é possível conversar consigo mesmo');
+    }
 
-    const existingConversation = Object.entries(conversations).find(([, value]) => {
-        const participants = value.participants ?? [];
-        return participants.length === 2 && participants.includes(currentUserId) && participants.includes(targetUserId);
-    });
+    const conversationId = buildDirectConversationId(currentUserId, targetUserId);
+    const conversationRef = doc(firebaseFirestore, 'directConversations', conversationId);
+    const snapshot = await getDoc(conversationRef);
 
-    if (existingConversation) {
-        const [id, value] = existingConversation;
+    if (snapshot.exists()) {
+        const data = snapshot.data();
+        await registerSelfAsConversationMember(conversationId, currentUserId);
+
         return {
-            id,
+            id: conversationId,
+            type: 'direct',
             participants: [currentUserId, targetUserId],
-            createdAt: value.createdAt ?? Date.now(),
+            createdAt: (data.createdAt as number) ?? Date.now(),
         };
     }
 
-    const newConversationRef = push(conversationsRef);
-    const conversation: Conversation = {
-        id: newConversationRef.key ?? getParticipantsKey(currentUserId, targetUserId),
+    await setDoc(conversationRef, {
+        participantIds: [currentUserId, targetUserId],
+        createdAt: serverTimestamp(),
+    });
+
+    await registerSelfAsConversationMember(conversationId, currentUserId);
+
+    return {
+        id: conversationId,
+        type: 'direct',
         participants: [currentUserId, targetUserId],
         createdAt: Date.now(),
     };
-
-    await set(newConversationRef, {
-        participants: conversation.participants,
-        createdAt: conversation.createdAt,
-    });
-
-    return conversation;
 };
 
-export const sendMessage = async (
+export const listDirectConversations = async (uid: string): Promise<DirectConversation[]> => {
+    const conversationsRef = collection(firebaseFirestore, 'directConversations');
+    const userConversationsQuery = query(conversationsRef, where('participantIds', 'array-contains', uid));
+    const snapshot = await getDocs(userConversationsQuery);
+
+    return snapshot.docs.map((conversationDoc) => {
+        const data = conversationDoc.data();
+        const participantIds = (data.participantIds as string[]) ?? [];
+
+        return {
+            id: conversationDoc.id,
+            type: 'direct',
+            participants: [participantIds[0] ?? '', participantIds[1] ?? ''],
+            createdAt: (data.createdAt as number) ?? Date.now(),
+        } satisfies DirectConversation;
+    });
+};
+
+export const subscribeToDirectConversations = (
+    uid: string,
+    onUpdate: (conversations: DirectConversation[]) => void,
+): Unsubscribe => {
+    const conversationsRef = collection(firebaseFirestore, 'directConversations');
+    const userConversationsQuery = query(conversationsRef, where('participantIds', 'array-contains', uid));
+
+    return onSnapshot(userConversationsQuery, (snapshot) => {
+        const conversations = snapshot.docs.map((conversationDoc) => {
+            const data = conversationDoc.data();
+            const participantIds = (data.participantIds as string[]) ?? [];
+
+            return {
+                id: conversationDoc.id,
+                type: 'direct',
+                participants: [participantIds[0] ?? '', participantIds[1] ?? ''],
+                createdAt: (data.createdAt as number) ?? Date.now(),
+            } satisfies DirectConversation;
+        });
+
+        onUpdate(conversations);
+    });
+};
+
+export const removeConversationMember = async (
     conversationId: string,
-    message: Omit<ChatMessage, 'id' | 'createdAt'>,
+    uid: string,
 ): Promise<void> => {
-    const messagesRef = ref(firebaseDatabase, `messages/${conversationId}`);
+    const memberRef = ref(firebaseDatabase, `conversationMembers/${conversationId}/${uid}`);
+    await set(memberRef, null);
+};
+
+export type SendMessageInput = {
+    conversationId: string;
+    conversationType: ConversationType;
+    senderId: string;
+    text: string;
+    target?: MessageTarget;
+    mentionedUserIds?: string[];
+};
+
+export const sendMessage = async (input: SendMessageInput): Promise<void> => {
+    const messagesRef = ref(firebaseDatabase, `messages/${input.conversationId}`);
     const newMessageRef = push(messagesRef);
+    const messageId = newMessageRef.key;
+
+    if (!messageId) {
+        throw new Error('Não foi possível gerar o identificador da mensagem');
+    }
 
     await set(newMessageRef, {
-        ...message,
-        id: newMessageRef.key,
+        id: messageId,
+        conversationId: input.conversationId,
+        conversationType: input.conversationType,
+        senderId: input.senderId,
+        text: input.text,
+        target: input.target ?? { type: 'conversation' },
+        mentionedUserIds: input.mentionedUserIds ?? [],
         createdAt: Date.now(),
     });
+
+    void notifyNewMessage(input.conversationId, messageId);
 };
 
 export const subscribeToMessages = (
@@ -82,9 +167,11 @@ export const subscribeToMessages = (
                 return {
                     id,
                     conversationId,
+                    conversationType: payload.conversationType ?? 'direct',
                     senderId: payload.senderId ?? '',
-                    receiverId: payload.receiverId ?? '',
                     text: payload.text ?? '',
+                    target: payload.target ?? { type: 'conversation' },
+                    mentionedUserIds: payload.mentionedUserIds ?? [],
                     createdAt: payload.createdAt ?? Date.now(),
                 } satisfies ChatMessage;
             })
@@ -98,39 +185,10 @@ export const subscribeToMessages = (
     };
 };
 
-export const listCompatibleUsers = async (
-    currentUser: ChatUser,
-): Promise<ChatUser[]> => {
-    const usersRef = ref(firebaseDatabase, 'users');
-    const snapshot = await get(usersRef);
-    const rawUsers = (snapshot.val() ?? {}) as Record<string, Partial<ChatUser>>;
+export const getConversationMembers = async (conversationId: string): Promise<string[]> => {
+    const membersRef = ref(firebaseDatabase, `conversationMembers/${conversationId}`);
+    const snapshot = await get(membersRef);
+    const membersValue = (snapshot.val() ?? {}) as Record<string, boolean>;
 
-    const providerCompatibility: Record<string, string[]> = {
-        password: ['password', 'google', 'apple'],
-        google: ['password'],
-        apple: ['password'],
-    };
-
-    const allowedProviders = providerCompatibility[currentUser.provider] ?? ['password'];
-
-    return Object.values(rawUsers)
-        .filter((user) => {
-            const typedUser = user as Partial<ChatUser>;
-            return (
-                Boolean(typedUser.uid) &&
-                typedUser.uid !== currentUser.uid &&
-                Boolean(typedUser.provider) &&
-                allowedProviders.includes(typedUser.provider as string)
-            );
-        })
-        .map((user) => {
-            const typedUser = user as Partial<ChatUser>;
-            return {
-                uid: typedUser.uid ?? '',
-                name: typedUser.name ?? 'Usuário',
-                email: typedUser.email ?? null,
-                provider: (typedUser.provider as ChatUser['provider']) ?? 'password',
-            } satisfies ChatUser;
-        })
-        .sort((first, second) => first.name.localeCompare(second.name));
+    return Object.keys(membersValue).filter((uid) => membersValue[uid]);
 };

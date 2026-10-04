@@ -4,14 +4,15 @@
     "slug": "6sem-mobile-cp1",
     "version": "1.0.0",
     "orientation": "portrait",
-    "scheme": "6sem-mobile-cp1",
+    "scheme": "chatseia",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true,
-      "usesAppleSignIn": true
+      "supportsTablet": true
     },
     "android": {
+      "package": "com.chatseia.app",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -24,8 +25,26 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-apple-authentication",
-      "expo-web-browser"
-    ]
+      "expo-status-bar",
+      "expo-dev-client",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "O app usa a galeria para escolher a foto de perfil ou do grupo."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#38BDF8"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "dd234c23-a1ff-4d9b-9010-d03cb35247f9"
+      }
+    }
   }
 }

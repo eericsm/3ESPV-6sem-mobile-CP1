@@ -1,0 +1,72 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwnerUid(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function directConversationId(a, b) {
+      return a < b ? a + '_' + b : b + '_' + a;
+    }
+
+    function sharesDirectConversationWith(otherUid) {
+      return exists(
+        /databases/$(database)/documents/directConversations/$(directConversationId(request.auth.uid, otherUid))
+      );
+    }
+
+    function sharesGroupWith(otherUid) {
+      let myGroupIds = get(/databases/$(database)/documents/users/$(request.auth.uid)).data.groupIds;
+      let otherGroupIds = get(/databases/$(database)/documents/users/$(otherUid)).data.groupIds;
+      return myGroupIds != null && otherGroupIds != null && myGroupIds.hasAny(otherGroupIds);
+    }
+
+    // users/{uid}: dados públicos (nome, foto, groupIds) -- necessários para a tela
+    // de contatos (iniciar conversa / montar grupo) e para o cálculo de "integrantes
+    // em comum" usado por sharesGroupWith. Nenhum dado sensível vive aqui.
+    match /users/{uid} {
+      allow read: if isSignedIn();
+      allow create: if isOwnerUid(uid);
+      allow update: if isOwnerUid(uid)
+        || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['groupIds']));
+      allow delete: if false;
+
+      match /devices/{deviceId} {
+        allow read, write: if isOwnerUid(uid);
+      }
+
+      // users/{uid}/private/profile: e-mail, celular e data de nascimento -- "dados
+      // cadastrais" do enunciado. Só o próprio usuário ou alguém que compartilhe uma
+      // conversa direta/grupo com ele pode ler; só o próprio usuário escreve.
+      match /private/{document=**} {
+        allow read: if isOwnerUid(uid) || sharesDirectConversationWith(uid) || sharesGroupWith(uid);
+        allow write: if isOwnerUid(uid);
+      }
+    }
+
+    match /directConversations/{conversationId} {
+      allow read: if isSignedIn() && request.auth.uid in resource.data.participantIds;
+      allow create: if isSignedIn()
+        && request.auth.uid in request.resource.data.participantIds
+        && request.resource.data.participantIds.size() == 2;
+      allow update, delete: if false;
+    }
+
+    match /groups/{groupId} {
+      allow read: if isSignedIn() && request.auth.uid in resource.data.memberIds;
+      allow create: if isSignedIn() && request.auth.uid == request.resource.data.ownerId;
+      allow update: if isSignedIn() && request.auth.uid == resource.data.ownerId;
+      allow delete: if false;
+    }
+
+    match /processedMessages/{messageId} {
+      allow read, write: if false;
+    }
+  }
+}

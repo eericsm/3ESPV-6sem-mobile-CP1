@@ -1,0 +1,40 @@
+{
+  "project_info": {
+    "project_number": "962570539319",
+    "firebase_url": "https://mobile-6sem-cp1-default-rtdb.firebaseio.com",
+    "project_id": "mobile-6sem-cp1",
+    "storage_bucket": "mobile-6sem-cp1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:962570539319:android:1c42e6e5ed479ac09c4ab2",
+        "android_client_info": {
+          "package_name": "com.chatseia.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "962570539319-s35fi8i6513cjjvm3rjj2p2lnufsfjfu.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD3vX1ZbqnG3KZQDQlFFPlpRg8twFjj0X0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "962570539319-s35fi8i6513cjjvm3rjj2p2lnufsfjfu.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
