@@ -67,8 +67,11 @@ documento), o perfil foi dividido em dois documentos:
 - Node.js 22.13+ (exigido pelo Expo SDK 57)
 - npm
 - Expo CLI (`npx expo ...`, não precisa instalar globalmente)
-- Android Studio / emulador, ou dispositivo físico com Expo Go (para o fluxo sem
-  push) ou development build (para testar push)
+- Para o fluxo **sem push**: dispositivo físico (ou emulador) com o app **Expo
+  Go**, ou um development build.
+- Para testar **push**: um development build num device físico Android. Não é
+  necessário Android Studio/SDK instalado localmente — o build é feito na nuvem
+  pelo **EAS Build** (ver "Configuração das notificações" abaixo).
 
 ## Instruções de instalação e execução (app)
 
@@ -84,14 +87,9 @@ rode com `npm install` sem configuração extra. Só `EXPO_PUBLIC_NOTIFICATIONS_
 precisa ser atualizado após o deploy da API (ver seção da API abaixo) — sem
 isso, o app funciona normalmente, só não dispara push.
 
-Escolha rodar no Android, iOS ou Web. Para testar **notificações push**, é
-necessário um development build:
-
-```bash
-npx expo run:android
-# ou
-npx expo run:ios
-```
+Escolha rodar no Android, iOS ou Web pelo menu do `expo start` — isso usa o
+Expo Go e cobre login, cadastro, conversas diretas e grupos. Para testar
+**notificações push**, é necessário um development build (ver seção abaixo).
 
 ## Configuração do Firebase
 
@@ -99,18 +97,25 @@ O arquivo `firebaseConfig.json`, na raiz do repositório, contém a configuraç�
 pública do SDK cliente (não é um segredo administrativo) e é lido por
 `src/services/firebase.ts`. Para apontar para outro projeto Firebase:
 
+O projeto Firebase (`mobile-6sem-cp1`) já está configurado com Authentication
+(e-mail/senha), Cloud Firestore e Realtime Database, e as regras deste
+repositório (`firestore.rules`, `database.rules.json`) já foram publicadas nele.
+Para rodar contra outro projeto Firebase (ex.: outra conta), os passos são:
+
 1. Crie um projeto no [Firebase Console](https://console.firebase.google.com/).
 2. Ative **Authentication** (e-mail/senha), **Cloud Firestore**, **Realtime
    Database** e **Cloud Messaging**.
 3. Copie as credenciais do app Web para `firebaseConfig.json` (mesmo formato já
    presente no arquivo).
-4. Publique as regras versionadas no repositório:
-   - `firestore.rules`
-   - `database.rules.json`
+4. `npx firebase-tools login` → `npx firebase-tools use --add` (selecione o
+   novo projeto) → publique as regras:
 
    ```bash
    npx firebase-tools deploy --only firestore:rules,database
    ```
+
+   `firebase.json`, `.firebaserc` e `firestore.indexes.json` (gerados pelo
+   `firebase init`) já estão no repositório e não contêm segredos.
 
 ### Armazenamento de fotos
 
@@ -143,15 +148,40 @@ Base64. Configuração (`src/services/imageUploadService.ts`):
   `users/{uid}/devices/{deviceId}` no Firestore.
 - O disparo do push em si é feito pela API (`server/`) via Firebase Admin SDK —
   o app nunca chama `admin.messaging()` nem guarda credencial administrativa.
-- **Android**: o projeto Firebase precisa ter o app Android registrado e o
-  `google-services.json` colocado na raiz antes de gerar um development build
-  (`npx expo run:android` cria o projeto nativo e já injeta a config).
-- **iOS**: push remoto exige conta Apple Developer paga, certificado/chave APNs
-  configurada no projeto Firebase (Cloud Messaging → APNs Auth Key) e um
-  development build (`npx expo run:ios`). Em simulador iOS, push remoto não
-  funciona — teste em device físico.
-- Em ambos os casos, push **não funciona no Expo Go**; é necessário development
-  build, como indicado acima.
+- Push **não funciona no Expo Go**; é necessário um development/standalone
+  build, como descrito abaixo.
+
+### Android
+
+O app Android já está registrado no projeto Firebase (pacote
+`com.chatseia.app`) e o `google-services.json` correspondente já está na raiz
+do repositório (referenciado em `app.json` → `android.googleServicesFile`) —
+nenhuma configuração extra é necessária para quem for buildar este repositório.
+
+Como nem todo mundo tem Android Studio/SDK instalado, o build é feito na nuvem
+pelo **EAS Build** (gratuito, sem necessidade de ambiente nativo local):
+
+```bash
+npm install -g eas-cli
+eas login                                   # conta Expo/EAS (gratuita)
+eas build --platform android --profile preview
+```
+
+Isso gera um `.apk` standalone (perfil `preview`, configurado em `eas.json`) e,
+ao final, imprime uma URL/QR code para baixar e instalar diretamente no
+celular (é preciso permitir "instalar de fontes desconhecidas" no Android). Com
+Android Studio/SDK instalado localmente, `npx expo run:android` também funciona
+como alternativa.
+
+### iOS
+
+Push remoto exige conta Apple Developer paga, certificado/chave APNs
+configurada no projeto Firebase (Cloud Messaging → APNs Auth Key) e um
+development build (`npx expo run:ios` ou `eas build --platform ios`). Em
+simulador iOS, push remoto não funciona — só em device físico. Este projeto
+não tem o app iOS registrado no Firebase; quem quiser testar em iOS precisa
+repetir o registro (Project settings → Add app → iOS) e gerar o
+`GoogleService-Info.plist`.
 
 ## API de notificações (`server/`)
 
@@ -294,7 +324,12 @@ dos dois consegue ler o outro dentro das próprias regras de segurança. Por iss
 ├── App.tsx
 ├── firebaseConfig.json
 ├── firestore.rules
+├── firestore.indexes.json
 ├── database.rules.json
+├── firebase.json
+├── .firebaserc
+├── google-services.json
+├── eas.json
 ├── .env
 ├── .env.example
 ├── src/
