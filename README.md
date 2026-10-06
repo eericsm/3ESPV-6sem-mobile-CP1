@@ -22,7 +22,7 @@ Messaging.
 - Cloud Firestore
 - Firebase Realtime Database
 - Firebase Cloud Messaging (FCM)
-- Cloudinary (fotos de perfil e de grupo — ver "Armazenamento de fotos" abaixo)
+- Cloudinary (fotos de perfil e de grupo)
 - `expo-notifications`, `expo-image-picker`, `expo-dev-client`
 - API própria: Node.js + Express + TypeScript (`server/`)
 
@@ -41,26 +41,11 @@ Messaging.
 |---|---|
 | **Firebase Authentication** | Cadastro e login por e-mail/senha, recuperação de sessão, logout. |
 | **Cloud Firestore** | Perfis de usuário (público `users/{uid}` + privado `users/{uid}/private/profile`), grupos e seus metadados (`groups/{id}`), conversas diretas (`directConversations/{id}`), tokens de dispositivo (`users/{uid}/devices/{deviceId}`), e idempotência de notificações (`processedMessages/{messageId}`, usado só pela API). |
-| **Realtime Database** | Mensagens (`messages/{conversationId}/{messageId}`) e os espelhos de membership usados pelas regras (`conversationMembers`, `groupOwners`) — ver seção de segurança. |
+| **Realtime Database** | Mensagens (`messages/{conversationId}/{messageId}`) e os espelhos de membership usados pelas regras (`conversationMembers`, `groupOwners`) |
 | **Firebase Cloud Messaging** | Envio de notificações push, disparado exclusivamente pela API (`server/`), nunca pelo app. |
 
 > Fotos de perfil/grupo **não** usam Firebase Storage — ver "Armazenamento de
 > fotos" abaixo para o porquê e o serviço escolhido.
-
-### Por que os perfis são divididos em público/privado no Firestore
-
-A tela de usuários precisa listar todos os cadastrados (para iniciar conversas e
-montar grupos), mas o enunciado exige que "dados cadastrais" (e-mail, celular,
-nascimento) só fiquem visíveis para quem compartilha uma conversa ou grupo com o
-usuário. Como as regras do Firestore não fazem redação por campo (só por
-documento), o perfil foi dividido em dois documentos:
-
-- `users/{uid}`: nome, foto, `createdAt`, `groupIds` — público para qualquer
-  autenticado (necessário para a tela de contatos e para a própria regra de
-  segurança calcular "integrantes em comum").
-- `users/{uid}/private/profile`: e-mail, celular, data de nascimento — só o
-  próprio usuário ou alguém que comprove (via regra) compartilhar uma conversa
-  direta ou grupo.
 
 ## Pré-requisitos
 
@@ -70,7 +55,7 @@ documento), o perfil foi dividido em dois documentos:
 - Para o fluxo **sem push**: dispositivo físico (ou emulador) com o app **Expo
   Go**, ou um development build.
 - Para testar **push**: um development build num device físico Android. Não é
-  necessário Android Studio/SDK instalado localmente — o build é feito na nuvem
+  necessário Android Studio/SDK instalado localmente, o build é feito na nuvem
   pelo **EAS Build** (ver "Configuração das notificações" abaixo).
 
 ## Instruções de instalação e execução (app)
@@ -80,14 +65,14 @@ npm install
 npx expo start
 ```
 
-O `.env` do app já vem commitado no repositório com valores reais — nada nele é
+O `.env` do app já vem commitado no repositório com valores reais, nada nele é
 secreto (Cloudinary cloud name/preset são públicos por design; a URL da API de
 notificações também não é sensível). Isso é intencional, para que o projeto
 rode com `npm install` sem configuração extra. Só `EXPO_PUBLIC_NOTIFICATIONS_API_URL`
-precisa ser atualizado após o deploy da API (ver seção da API abaixo) — sem
+precisa ser atualizado após o deploy da API (ver seção da API abaixo), sem
 isso, o app funciona normalmente, só não dispara push.
 
-Escolha rodar no Android, iOS ou Web pelo menu do `expo start` — isso usa o
+Escolha rodar no Android, iOS ou Web pelo menu do `expo start`, isso usa o
 Expo Go e cobre login, cadastro, conversas diretas e grupos. Para testar
 **notificações push**, é necessário um development build (ver seção abaixo).
 
@@ -120,11 +105,9 @@ Para rodar contra outro projeto Firebase (ex.: outra conta), os passos são:
 
 ### Armazenamento de fotos
 
-**Firebase Storage não é usado neste projeto** — desde o final de 2024 ele
+**Firebase Storage não é usado neste projeto**, desde o final de 2024 ele
 passou a exigir o plano pago (Blaze), mesmo para uso dentro da cota gratuita, e
-a equipe optou por não vincular um cartão de crédito. O enunciado permite
-explicitamente essa troca ("Firebase Storage é recomendado, mas outra solução
-poderá ser utilizada").
+a equipe optou por não vincular um cartão de crédito.
 
 Fotos de perfil e de grupo são enviadas para o **Cloudinary** (free tier, sem
 necessidade de cartão), via upload direto do app usando um
@@ -147,7 +130,7 @@ Base64. Configuração (`src/services/imageUploadService.ts`):
   e capturar o **token nativo do dispositivo** (`getDevicePushTokenAsync`, que no
   Android é o token FCM real), salvo em
   `users/{uid}/devices/{deviceId}` no Firestore.
-- O disparo do push em si é feito pela API (`server/`) via Firebase Admin SDK —
+- O disparo do push em si é feito pela API (`server/`) via Firebase Admin SDK,
   o app nunca chama `admin.messaging()` nem guarda credencial administrativa.
 - Push **não funciona no Expo Go**; é necessário um development/standalone
   build, como descrito abaixo.
@@ -156,7 +139,7 @@ Base64. Configuração (`src/services/imageUploadService.ts`):
 
 O app Android já está registrado no projeto Firebase (pacote
 `com.chatseia.app`) e o `google-services.json` correspondente já está na raiz
-do repositório (referenciado em `app.json` → `android.googleServicesFile`) —
+do repositório (referenciado em `app.json` → `android.googleServicesFile`),
 nenhuma configuração extra é necessária para quem for buildar este repositório.
 
 Como nem todo mundo tem Android Studio/SDK instalado, o build é feito na nuvem
@@ -179,7 +162,7 @@ como alternativa.
 Push remoto exige conta Apple Developer paga, certificado/chave APNs
 configurada no projeto Firebase (Cloud Messaging → APNs Auth Key) e um
 development build (`npx expo run:ios` ou `eas build --platform ios`). Em
-simulador iOS, push remoto não funciona — só em device físico. Este projeto
+simulador iOS, push remoto não funciona, só em device físico. Este projeto
 não tem o app iOS registrado no Firebase; quem quiser testar em iOS precisa
 repetir o registro (Project settings → Add app → iOS) e gerar o
 `GoogleService-Info.plist`.
@@ -199,7 +182,7 @@ token do usuário e enviar notificações via FCM. Não usa Cloud Functions.
 3. A API valida o token com o Admin SDK, confirma no Realtime Database que a
    mensagem existe e que `senderId` é o usuário autenticado.
 4. A API verifica se a mensagem já foi processada (`processedMessages/{messageId}`
-   no Firestore, escrito dentro de uma transação) — se já foi, responde sem
+   no Firestore, escrito dentro de uma transação), se já foi, responde sem
    reenviar (idempotência contra chamadas duplicadas).
 5. A API consulta no Firestore o tipo de conversa:
    - **direta** (`directConversations/{id}`): destinatário é o outro
@@ -211,7 +194,7 @@ token do usuário e enviar notificações via FCM. Não usa Cloud Functions.
    `admin.messaging().sendEachForMulticast`. Tokens inválidos/não registrados
    são automaticamente desativados no Firestore.
 
-Os destinatários **nunca** são recebidos do app — são sempre recalculados no
+Os destinatários **nunca** são recebidos do app, são sempre recalculados no
 servidor a partir do Firestore/Realtime Database oficiais.
 
 ### Endpoints
@@ -253,7 +236,7 @@ Health check: `GET https://threeespv-6sem-mobile-cp1.onrender.com/health` →
 `200 { "status": "ok" }`.
 
 > O serviço está no plano free do Render, que hiberna após ~15 min sem
-> requisições — a primeira chamada depois de um período ocioso pode demorar
+> requisições, a primeira chamada depois de um período ocioso pode demorar
 > uns 30-50s (cold start) antes de responder. Chamadas seguintes são rápidas.
 
 ### Credenciais administrativas
@@ -288,7 +271,7 @@ A proteção existe em duas camadas independentes, como o enunciado exige
 1. **Interface**: `GroupFormScreen` mostra quantas vagas restam e bloqueia o
    envio com limite inválido antes mesmo de chamar o backend.
 2. **Transação no app** (`groupService.addMember`): usa `runTransaction` do
-   Firestore — lê o documento do grupo dentro da transação, confere
+   Firestore, lê o documento do grupo dentro da transação, confere
    `memberIds.length < memberLimit` e só então grava o novo integrante. As
    transações do Firestore são otimistas: se duas pessoas tentarem entrar ao
    mesmo tempo no último slot disponível, o Firestore detecta o conflito de
@@ -297,7 +280,7 @@ A proteção existe em duas camadas independentes, como o enunciado exige
 3. **Regra do Firestore** (`firestore.rules`, `match /groups/{groupId}`): toda
    escrita (`create` ou `update`) ao documento do grupo exige
    `memberIds.size() <= memberLimit`, independentemente de qual código a
-   originou. Essa é a camada que realmente não pode ser contornada — mesmo que
+   originou. Essa é a camada que realmente não pode ser contornada, mesmo que
    alguém ignore `groupService.addMember` e escreva direto pelo SDK, o
    Firestore rejeita a escrita se ela ultrapassar o limite. Como consequência,
    essa mesma regra também impede reduzir `memberLimit` para um valor menor que
@@ -318,10 +301,10 @@ na interface.
   em `conversationMembers/{conversationId}/{uid}`; esse espelho só pode ser
   escrito pelo próprio uid (auto-registro ao abrir a conversa) ou pelo
   proprietário do grupo (identificado por `groupOwners/{groupId}`, gravado uma
-  única vez na criação do grupo) — isso permite remover o acesso de um
+  única vez na criação do grupo), isso permite remover o acesso de um
   integrante removido imediatamente. Mensagens são imutáveis
   (`!data.exists()` no `.write`) e o `senderId` deve ser o autor autenticado.
-- Fotos (Cloudinary) não passam pelas regras do Firebase — a proteção ali é o
+- Fotos (Cloudinary) não passam pelas regras do Firebase, a proteção ali é o
   "unsigned upload preset" (só permite criar arquivos novos, não ler/listar/
   apagar o restante da conta).
 
@@ -335,7 +318,7 @@ dos dois consegue ler o outro dentro das próprias regras de segurança. Por iss
   decidirem acesso sem precisar ler o Firestore;
 - a API, antes de enviar qualquer push, **revalida tudo direto nas fontes
   oficiais** (Realtime Database para a mensagem, Firestore para
-  participantes/política) — ela nunca confia nos espelhos nem em dados vindos
+  participantes/política), ela nunca confia nos espelhos nem em dados vindos
   do app.
 
 ## Estrutura do projeto
