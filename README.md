@@ -389,22 +389,21 @@ dos dois consegue ler o outro dentro das próprias regras de segurança. Por iss
 
 ## Prints da aplicação
 
-> ⚠️ **TODO (equipe):** os prints abaixo são do protótipo da fase anterior
-> (login simples, sem grupos). Recapturar prints das telas atuais (cadastro
-> completo, lista de conversas unificada, criação de grupo, chat em grupo com
-> menção, perfil) antes da entrega.
+<img width="738" height="1600" alt="img" src="https://github.com/user-attachments/assets/ebc3c6b3-c815-4040-bc67-47a5cce5f7d7" />
+<img width="738" height="1600" alt="img(6)" src="https://github.com/user-attachments/assets/860c363e-1917-44f6-9232-5c855ee9ca8e" />
+<img width="738" height="1600" alt="img(5)" src="https://github.com/user-attachments/assets/6cc31eb1-7a5d-4c91-b6e3-baa1dcb5fb29" />
+<img width="738" height="1600" alt="img(4)" src="https://github.com/user-attachments/assets/6ad1cb59-8718-4e73-9df8-50528d18dd04" />
+<img width="738" height="1600" alt="img(3)" src="https://github.com/user-attachments/assets/a700ccbe-6543-44cf-950e-bae71ad4ec63" />
+<img width="738" height="1600" alt="img(2)" src="https://github.com/user-attachments/assets/2aeccba4-6af3-48fa-b122-278d6a38fa76" />
+<img width="738" height="1600" alt="img(1)" src="https://github.com/user-attachments/assets/c1b5a11f-156b-4e66-8364-72102bee18d2" />
 
-![tela de login](image.png)
-![tela de cadastro](image-3.png)
-![tela de contatos](image-1.png)
-![tela de chat](image-2.png)
 
-## Evidência de notificação recebida
+## Evidência de notificação
 
-> ⚠️ **TODO (equipe):** inserir aqui um print/gravação mostrando a notificação
-> push chegando com o app em segundo plano, em um development build num device
-> físico (print da notificação no sistema + print da conversa aberta após o
-> toque).
+
+https://github.com/user-attachments/assets/97009373-2b2b-442f-8447-9723694a2706
+
+
 
 ## Observações
 
