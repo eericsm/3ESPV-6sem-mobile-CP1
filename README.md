@@ -95,11 +95,12 @@ Expo Go e cobre login, cadastro, conversas diretas e grupos. Para testar
 
 O arquivo `firebaseConfig.json`, na raiz do repositório, contém a configuração
 pública do SDK cliente (não é um segredo administrativo) e é lido por
-`src/services/firebase.ts`. Para apontar para outro projeto Firebase:
+`src/services/firebase.ts`. O projeto Firebase (`mobile-6sem-cp1`) já está
+configurado com Authentication (e-mail/senha), Cloud Firestore e Realtime
+Database, e as regras deste repositório (`firestore.rules`,
+`database.rules.json`) já foram publicadas nele — nenhuma configuração
+adicional é necessária para rodar o projeto como está.
 
-O projeto Firebase (`mobile-6sem-cp1`) já está configurado com Authentication
-(e-mail/senha), Cloud Firestore e Realtime Database, e as regras deste
-repositório (`firestore.rules`, `database.rules.json`) já foram publicadas nele.
 Para rodar contra outro projeto Firebase (ex.: outra conta), os passos são:
 
 1. Crie um projeto no [Firebase Console](https://console.firebase.google.com/).
@@ -246,9 +247,14 @@ npm run dev
 
 ### URL pública da API
 
-> ⚠️ **TODO (equipe):** preencher aqui a URL pública definitiva após o deploy,
-> por exemplo `https://chat-seia-notifications-api.onrender.com`. O endpoint
-> `/health` dessa URL deve responder `200` durante toda a correção.
+**`https://threeespv-6sem-mobile-cp1.onrender.com`**
+
+Health check: `GET https://threeespv-6sem-mobile-cp1.onrender.com/health` →
+`200 { "status": "ok" }`.
+
+> O serviço está no plano free do Render, que hiberna após ~15 min sem
+> requisições — a primeira chamada depois de um período ocioso pode demorar
+> uns 30-50s (cold start) antes de responder. Chamadas seguintes são rápidas.
 
 ### Credenciais administrativas
 
@@ -276,22 +282,38 @@ recalculada no servidor (nunca enviada pelo app).
 
 ## Explicação da proteção contra concorrência do limite de grupo
 
-`groupService.addMember` (app) usa `runTransaction` do Firestore: dentro da
-transação, lê o documento do grupo, confere
-`memberIds.length < memberLimit` e só então grava o novo integrante. As
-transações do Firestore são otimistas — se duas pessoas tentarem entrar ao
-mesmo tempo no último slot disponível, o Firestore detecta o conflito de leitura
-e repete automaticamente a transação perdedora; na nova tentativa, ela lerá o
-estado já atualizado e falhará a checagem de capacidade. Isso garante que o
-grupo nunca excede `memberLimit`, mesmo sob requisições concorrentes, sem
-depender apenas de desabilitar botões na interface.
+A proteção existe em duas camadas independentes, como o enunciado exige
+("interface **e** regras do banco ou API"):
+
+1. **Interface**: `GroupFormScreen` mostra quantas vagas restam e bloqueia o
+   envio com limite inválido antes mesmo de chamar o backend.
+2. **Transação no app** (`groupService.addMember`): usa `runTransaction` do
+   Firestore — lê o documento do grupo dentro da transação, confere
+   `memberIds.length < memberLimit` e só então grava o novo integrante. As
+   transações do Firestore são otimistas: se duas pessoas tentarem entrar ao
+   mesmo tempo no último slot disponível, o Firestore detecta o conflito de
+   leitura e repete automaticamente a transação perdedora, que na nova
+   tentativa lê o estado já atualizado e falha a checagem de capacidade.
+3. **Regra do Firestore** (`firestore.rules`, `match /groups/{groupId}`): toda
+   escrita (`create` ou `update`) ao documento do grupo exige
+   `memberIds.size() <= memberLimit`, independentemente de qual código a
+   originou. Essa é a camada que realmente não pode ser contornada — mesmo que
+   alguém ignore `groupService.addMember` e escreva direto pelo SDK, o
+   Firestore rejeita a escrita se ela ultrapassar o limite. Como consequência,
+   essa mesma regra também impede reduzir `memberLimit` para um valor menor que
+   a quantidade atual de integrantes.
+
+Juntas, essas três camadas garantem que o grupo nunca excede `memberLimit`,
+mesmo sob requisições concorrentes, sem depender apenas de desabilitar botões
+na interface.
 
 ## Regras de segurança
 
 - `firestore.rules`: perfis público/privado (ver seção acima), conversas
   diretas e grupos só legíveis por quem participa, `groups` só editável pelo
-  proprietário, `processedMessages` bloqueado para o cliente (só a API o usa
-  via Admin SDK, que ignora regras).
+  proprietário e sempre com `memberIds.size() <= memberLimit` (ver seção de
+  concorrência acima), `processedMessages` bloqueado para o cliente (só a API
+  o usa via Admin SDK, que ignora regras).
 - `database.rules.json`: mensagens só legíveis/graváveis por quem está marcado
   em `conversationMembers/{conversationId}/{uid}`; esse espelho só pode ser
   escrito pelo próprio uid (auto-registro ao abrir a conversa) ou pelo

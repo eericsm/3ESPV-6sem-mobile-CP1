@@ -15,7 +15,53 @@ import { ErrorMessage } from '../components/ErrorMessage';
 import { useAuth } from '../hooks/useAuth';
 import { pickImageFromLibrary } from '../utils/imagePicker';
 
-const BIRTH_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const BIRTH_DATE_PATTERN = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+const PHONE_NUMBER_MAX_LENGTH = 11;
+
+const formatPhoneNumber = (rawValue: string): string => {
+    return rawValue.replace(/\D/g, '').slice(0, PHONE_NUMBER_MAX_LENGTH);
+};
+
+const clampDateSegment = (segment: string, min: number, max: number): string => {
+    if (segment.length < 2) {
+        return segment;
+    }
+
+    const clamped = Math.min(Math.max(Number(segment), min), max);
+    return String(clamped).padStart(2, '0');
+};
+
+const formatBirthDate = (rawValue: string): string => {
+    const digits = rawValue.replace(/\D/g, '').slice(0, 8);
+    const day = clampDateSegment(digits.slice(0, 2), 1, 31);
+    const month = clampDateSegment(digits.slice(2, 4), 1, 12);
+    const year = digits.slice(4, 8);
+
+    let formatted = day;
+
+    if (digits.length > 2) {
+        formatted += `/${month}`;
+    }
+
+    if (digits.length > 4) {
+        formatted += `/${year}`;
+    }
+
+    return formatted;
+};
+
+const isValidBirthDate = (value: string): boolean => {
+    const match = BIRTH_DATE_PATTERN.exec(value);
+
+    if (!match) {
+        return false;
+    }
+
+    const day = Number(match[1]);
+    const month = Number(match[2]);
+
+    return day >= 1 && day <= 31 && month >= 1 && month <= 12;
+};
 
 type RegisterScreenProps = {
     onBackToLogin: () => void;
@@ -60,8 +106,13 @@ export const RegisterScreen = ({ onBackToLogin }: RegisterScreenProps) => {
             return;
         }
 
-        if (!BIRTH_DATE_PATTERN.test(birthDate.trim())) {
-            setError('Informe a data de nascimento no formato AAAA-MM-DD');
+        if (phoneNumber.trim().length < 10) {
+            setError('Informe um número de celular válido, com DDD');
+            return;
+        }
+
+        if (!isValidBirthDate(birthDate.trim())) {
+            setError('Informe a data de nascimento no formato DD/MM/AAAA');
             return;
         }
 
@@ -135,20 +186,22 @@ export const RegisterScreen = ({ onBackToLogin }: RegisterScreenProps) => {
 
                     <TextInput
                         style={styles.input}
-                        placeholder="Número de celular"
+                        placeholder="Número de celular (DDD + número)"
                         placeholderTextColor="#64748B"
                         value={phoneNumber}
-                        onChangeText={setPhoneNumber}
-                        keyboardType="phone-pad"
+                        onChangeText={(value) => setPhoneNumber(formatPhoneNumber(value))}
+                        keyboardType="number-pad"
+                        maxLength={PHONE_NUMBER_MAX_LENGTH}
                     />
 
                     <TextInput
                         style={styles.input}
-                        placeholder="Data de nascimento (AAAA-MM-DD)"
+                        placeholder="Data de nascimento (DD/MM/AAAA)"
                         placeholderTextColor="#64748B"
                         value={birthDate}
-                        onChangeText={setBirthDate}
-                        keyboardType="numbers-and-punctuation"
+                        onChangeText={(value) => setBirthDate(formatBirthDate(value))}
+                        keyboardType="number-pad"
+                        maxLength={10}
                     />
 
                     {error ? <ErrorMessage message={error} /> : null}

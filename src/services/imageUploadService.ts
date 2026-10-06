@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+
 // Fotos de perfil/grupo são enviadas pro Cloudinary (free tier, sem necessidade de
 // cartão) em vez do Firebase Storage, que hoje exige o plano pago (Blaze) mesmo
 // para uso dentro da cota gratuita. O upload usa um "unsigned upload preset" --
@@ -17,11 +19,24 @@ type CloudinaryUploadResponse = {
     secure_url: string;
 };
 
-export const uploadImage = async (publicId: string, localUri: string): Promise<string> => {
-    if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_UPLOAD_PRESET) {
-        throw new Error(
-            'Cloudinary não está configurado. Defina EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME e EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET.',
-        );
+type CloudinaryErrorResponse = {
+    error?: { message?: string };
+};
+
+// No navegador, FormData.append precisa de um Blob/File real -- o truque
+// {uri, name, type} é uma convenção exclusiva do polyfill de FormData do React
+// Native e não funciona em fetch/FormData nativos do browser (usados pela build
+// web do Expo).
+const appendFileToFormData = async (
+    formData: FormData,
+    localUri: string,
+    publicId: string,
+): Promise<void> => {
+    if (Platform.OS === 'web') {
+        const response = await fetch(localUri);
+        const blob = await response.blob();
+        formData.append('file', blob, `${publicId}.jpg`);
+        return;
     }
 
     const filePart: ReactNativeFilePart = {
@@ -30,8 +45,18 @@ export const uploadImage = async (publicId: string, localUri: string): Promise<s
         type: 'image/jpeg',
     };
 
-    const formData = new FormData();
     formData.append('file', filePart as unknown as Blob);
+};
+
+export const uploadImage = async (publicId: string, localUri: string): Promise<string> => {
+    if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_UPLOAD_PRESET) {
+        throw new Error(
+            'Cloudinary não está configurado. Defina EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME e EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET.',
+        );
+    }
+
+    const formData = new FormData();
+    await appendFileToFormData(formData, localUri, publicId);
     formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
     formData.append('public_id', publicId);
 
@@ -41,7 +66,9 @@ export const uploadImage = async (publicId: string, localUri: string): Promise<s
     });
 
     if (!response.ok) {
-        throw new Error('Não foi possível enviar a imagem para o Cloudinary');
+        const errorBody = (await response.json().catch(() => null)) as CloudinaryErrorResponse | null;
+        const reason = errorBody?.error?.message ?? `HTTP ${response.status}`;
+        throw new Error(`Não foi possível enviar a imagem para o Cloudinary (${reason})`);
     }
 
     const data = (await response.json()) as CloudinaryUploadResponse;

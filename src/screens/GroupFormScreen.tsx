@@ -156,10 +156,17 @@ export const GroupFormScreen = ({ currentUser, existingGroup, onBack, onSaved }:
 
         try {
             let finalPhotoUrl = photoUrl;
+            let photoUploadFailed = false;
 
             if (existingGroup && photoLocalUri) {
-                finalPhotoUrl = await uploadGroupPhoto(existingGroup.id, photoLocalUri);
-                await updateGroupPhoto(existingGroup.id, finalPhotoUrl);
+                try {
+                    finalPhotoUrl = await uploadGroupPhoto(existingGroup.id, photoLocalUri);
+                    await updateGroupPhoto(existingGroup.id, finalPhotoUrl);
+                } catch {
+                    // A foto é só um complemento -- demais alterações do grupo não
+                    // podem ficar bloqueadas por uma falha no upload da imagem.
+                    photoUploadFailed = true;
+                }
             }
 
             if (existingGroup) {
@@ -177,6 +184,10 @@ export const GroupFormScreen = ({ currentUser, existingGroup, onBack, onSaved }:
 
                 for (const uid of newMemberIds) {
                     await addMember(existingGroup.id, uid);
+                }
+
+                if (photoUploadFailed) {
+                    setError('Grupo atualizado, mas não foi possível enviar a nova foto. Tente novamente depois.');
                 }
 
                 onSaved({
@@ -200,10 +211,16 @@ export const GroupFormScreen = ({ currentUser, existingGroup, onBack, onSaved }:
             });
 
             if (photoLocalUri) {
-                const uploadedPhotoUrl = await uploadGroupPhoto(group.id, photoLocalUri);
-                await updateGroupPhoto(group.id, uploadedPhotoUrl);
-                onSaved({ ...group, photoUrl: uploadedPhotoUrl });
-                return;
+                try {
+                    const uploadedPhotoUrl = await uploadGroupPhoto(group.id, photoLocalUri);
+                    await updateGroupPhoto(group.id, uploadedPhotoUrl);
+                    onSaved({ ...group, photoUrl: uploadedPhotoUrl });
+                    return;
+                } catch {
+                    // Grupo já foi criado; a foto pode ser definida depois ao editar.
+                    onSaved(group);
+                    return;
+                }
             }
 
             onSaved(group);

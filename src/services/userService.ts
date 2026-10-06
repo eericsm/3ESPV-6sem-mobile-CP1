@@ -115,6 +115,10 @@ export const removeUserFromGroup = async (uid: string, groupId: string): Promise
     });
 };
 
+export const updateUserPhoto = async (uid: string, photoUrl: string): Promise<void> => {
+    await updateDoc(publicDocRef(uid), { photoUrl });
+};
+
 export const uploadProfilePhoto = async (uid: string, localUri: string): Promise<string> => {
     return uploadImage(`profilePhotos/${uid}`, localUri);
 };

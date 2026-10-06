@@ -3,10 +3,13 @@
     "version": "1.0.0",
     "private": true,
     "main": "dist/app.js",
+    "engines": {
+        "node": ">=22"
+    },
     "scripts": {
         "build": "tsc",
-        "start": "node dist/app.js",
-        "dev": "tsx watch src/app.ts"
+        "start": "node --env-file-if-exists=.env dist/app.js",
+        "dev": "tsx watch --env-file-if-exists=.env src/app.ts"
     },
     "dependencies": {
         "cors": "^2.8.5",
