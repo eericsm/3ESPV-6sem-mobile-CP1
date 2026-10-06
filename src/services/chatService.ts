@@ -10,7 +10,15 @@ import {
     where,
     type Unsubscribe,
 } from 'firebase/firestore';
-import { get, off, onValue, push, ref, set } from 'firebase/database';
+import {
+    get,
+    off,
+    onValue,
+    push,
+    ref,
+    serverTimestamp as rtdbServerTimestamp,
+    set,
+} from 'firebase/database';
 import { firebaseDatabase, firebaseFirestore } from './firebase';
 import { notifyNewMessage } from './notificationService';
 import { buildDirectConversationId } from '../utils/conversationId';
@@ -146,7 +154,7 @@ export const sendMessage = async (input: SendMessageInput): Promise<void> => {
         text: input.text,
         target: input.target ?? { type: 'conversation' },
         mentionedUserIds: input.mentionedUserIds ?? [],
-        createdAt: Date.now(),
+        createdAt: rtdbServerTimestamp(),
     });
 
     void notifyNewMessage(input.conversationId, messageId);
@@ -175,7 +183,11 @@ export const subscribeToMessages = (
                     createdAt: payload.createdAt ?? Date.now(),
                 } satisfies ChatMessage;
             })
-            .sort((first, second) => first.createdAt - second.createdAt);
+            // Ordena pela própria push key (não por createdAt): o ID gerado por
+            // push() usa o relógio do servidor já corrigido para clock skew do
+            // cliente, então a ordem fica correta mesmo que os dispositivos dos
+            // dois usuários tenham horários locais diferentes.
+            .sort((first, second) => (first.id < second.id ? -1 : first.id > second.id ? 1 : 0));
 
         onUpdate(nextMessages);
     });
