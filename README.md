@@ -265,8 +265,7 @@ recalculada no servidor (nunca enviada pelo app).
 
 ## Explicação da proteção contra concorrência do limite de grupo
 
-A proteção existe em duas camadas independentes, como o enunciado exige
-("interface **e** regras do banco ou API"):
+A proteção existe em duas camadas independentes
 
 1. **Interface**: `GroupFormScreen` mostra quantas vagas restam e bloqueia o
    envio com limite inválido antes mesmo de chamar o backend.
@@ -402,14 +401,6 @@ dos dois consegue ler o outro dentro das próprias regras de segurança. Por iss
 
 
 https://github.com/user-attachments/assets/97009373-2b2b-442f-8447-9723694a2706
-
-
-
-## Observações
-
-- Autenticação é exclusivamente por e-mail e senha, não há login com Google,
-  Apple, contas anônimas ou usuários hardcoded.
-- Zero uso de `any` no código TypeScript do app e da API.
 
 ## Integrantes
 
