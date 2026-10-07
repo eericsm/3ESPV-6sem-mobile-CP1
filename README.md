@@ -44,7 +44,7 @@ Messaging.
 | **Realtime Database** | Mensagens (`messages/{conversationId}/{messageId}`) e os espelhos de membership usados pelas regras (`conversationMembers`, `groupOwners`) |
 | **Firebase Cloud Messaging** | Envio de notificações push, disparado exclusivamente pela API (`server/`), nunca pelo app. |
 
-> Fotos de perfil/grupo **não** usam Firebase Storage — ver "Armazenamento de
+> Fotos de perfil/grupo **não** usam Firebase Storage, ver "Armazenamento de
 > fotos" abaixo para o porquê e o serviço escolhido.
 
 ## Pré-requisitos
@@ -83,7 +83,7 @@ pública do SDK cliente (não é um segredo administrativo) e é lido por
 `src/services/firebase.ts`. O projeto Firebase (`mobile-6sem-cp1`) já está
 configurado com Authentication (e-mail/senha), Cloud Firestore e Realtime
 Database, e as regras deste repositório (`firestore.rules`,
-`database.rules.json`) já foram publicadas nele — nenhuma configuração
+`database.rules.json`) já foram publicadas nele, nenhuma configuração
 adicional é necessária para rodar o projeto como está.
 
 Para rodar contra outro projeto Firebase (ex.: outra conta), os passos são:
@@ -201,7 +201,7 @@ servidor a partir do Firestore/Realtime Database oficiais.
 
 | Método | Rota | Descrição |
 |---|---|---|
-| `GET` | `/health` | Health check — retorna `200 { "status": "ok" }`. |
+| `GET` | `/health` | Health check retorna `200 { "status": "ok" }`. |
 | `POST` | `/notifications/messages` | Dispara a notificação de uma mensagem já persistida. Corpo: `{ "conversationId": string, "messageId": string }`. Header: `Authorization: Bearer <firebase-id-token>`. |
 
 ### Como rodar localmente
@@ -265,8 +265,7 @@ recalculada no servidor (nunca enviada pelo app).
 
 ## Explicação da proteção contra concorrência do limite de grupo
 
-A proteção existe em duas camadas independentes, como o enunciado exige
-("interface **e** regras do banco ou API"):
+A proteção existe em duas camadas independentes
 
 1. **Interface**: `GroupFormScreen` mostra quantas vagas restam e bloqueia o
    envio com limite inválido antes mesmo de chamar o backend.
@@ -403,18 +402,13 @@ dos dois consegue ler o outro dentro das próprias regras de segurança. Por iss
 
 https://github.com/user-attachments/assets/97009373-2b2b-442f-8447-9723694a2706
 
-
-
-## Observações
-
-- Autenticação é exclusivamente por e-mail e senha — não há login com Google,
-  Apple, contas anônimas ou usuários hardcoded.
-- Zero uso de `any` no código TypeScript do app e da API.
+## build
+https://expo.dev/accounts/eericorp/projects/6sem-mobile-cp1/builds/cf6eff8b-2f96-400b-a7e7-0368ca0273a4
 
 ## Integrantes
 
-- RM557948 — Joao Victor Oliveira dos Santos
-- RM558193 — Matheus Alcântara Estevão
-- RM558610 — Nicolle Pellegrino Jelinski
-- RM552047 — Pedro Pereira dos Santos
-- RM558224 — Eric Segawa Montagner
+- RM557948 - Joao Victor Oliveira dos Santos
+- RM558193 - Matheus Alcântara Estevão
+- RM558610 - Nicolle Pellegrino Jelinski
+- RM552047 - Pedro Pereira dos Santos
+- RM558224 - Eric Segawa Montagner
