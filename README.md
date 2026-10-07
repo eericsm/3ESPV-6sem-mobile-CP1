@@ -402,6 +402,9 @@ dos dois consegue ler o outro dentro das próprias regras de segurança. Por iss
 
 https://github.com/user-attachments/assets/97009373-2b2b-442f-8447-9723694a2706
 
+## build
+https://expo.dev/accounts/eericorp/projects/6sem-mobile-cp1/builds/cf6eff8b-2f96-400b-a7e7-0368ca0273a4
+
 ## Integrantes
 
 - RM557948 - Joao Victor Oliveira dos Santos
